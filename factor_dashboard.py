@@ -18,6 +18,7 @@ FACTOR_TICKERS = {
     "World Momentum": "IWFM.L",
     "World Value": "XDEV.L",
     "World Quality": "IWQU.L",
+    "World Growth": "IWFG.L",
     "World Size": "IWFS.L",
 }
 
@@ -49,12 +50,12 @@ SECTOR_TICKERS = {
 
 @st.cache_data(ttl=3600) # Cache data for 1 hour
 def get_performance_data(tickers, start_date):
-    # ... (function is updated to accept a start_date)
+    # ... (function is largely unchanged)
     raw_data = yf.download(list(tickers.values()), start=start_date, progress=False, auto_adjust=False)
 
     if raw_data.empty or 'Close' not in raw_data:
         st.error(f"Could not download market data for one or more tickers.")
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame()
     
     if isinstance(raw_data.columns, pd.MultiIndex):
         data = raw_data['Close'].dropna(axis=1, how='all')
@@ -62,7 +63,7 @@ def get_performance_data(tickers, start_date):
         data = raw_data[['Close']].dropna(axis=1, how='all')
 
     if data.empty:
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame()
 
     # Rename columns to human-readable names
     ticker_to_name = {v: k for k, v in tickers.items()}
@@ -71,30 +72,53 @@ def get_performance_data(tickers, start_date):
     return data
 
 def calculate_performance_metrics(data):
-    # ... (New function to separate calculation from data fetching)
+    """
+    Calculates performance for dynamic To-Date timeframes: 1 Day, Week, Month, Quarter, and Year.
+    """
     if len(data) < 2:
         return pd.DataFrame()
 
     latest_price = data.iloc[-1]
-    perf_1d = latest_price / data.iloc[-2] - 1
+    today = pd.to_datetime(datetime.now().date())
 
-    if len(data) > 21:
-        perf_1m = latest_price / data.iloc[-22] - 1
-    else:
-        perf_1m = latest_price / data.iloc[0] - 1
+    # --- Define Start Dates for each period ---
+    start_of_week = today - pd.offsets.Week(weekday=0)
+    start_of_month = today - pd.offsets.MonthBegin(1)
+    start_of_quarter = today - pd.offsets.QuarterBegin(1, startingMonth=1)
     
-    current_year = datetime.now().year
-    last_year_data = data[data.index.year == current_year - 1]
-    if not last_year_data.empty:
-        ytd_start_price = last_year_data.iloc[-1]
-        perf_ytd = latest_price / ytd_start_price - 1
-    else:
-        perf_ytd = latest_price / data[data.index.year == current_year].iloc[0] - 1
+    # --- Find the price at the close of business BEFORE the period started ---
+    try:
+        sow_price = data.asof(start_of_week - pd.DateOffset(days=1))
+        som_price = data.asof(start_of_month - pd.DateOffset(days=1))
+        soq_price = data.asof(start_of_quarter - pd.DateOffset(days=1))
+        
+        # For YTD, get the last price of the previous year
+        last_year_data = data[data.index.year == today.year - 1]
+        if not last_year_data.empty:
+            soy_price = last_year_data.iloc[-1]
+        else: # Fallback if no data from last year
+            soy_price = data[data.index.year == today.year].iloc[0]
 
+        # Ensure all start prices are valid
+        if sow_price.isnull().all() or som_price.isnull().all() or soq_price.isnull().all() or soy_price.isnull().all():
+             raise KeyError("Could not find a valid start price for a period.")
+
+    except (KeyError, IndexError):
+        return pd.DataFrame() # Not enough data to calculate
+
+    # --- Performance Calculations ---
+    perf_1d = (latest_price / data.iloc[-2]) - 1 # Re-added 1-day performance
+    perf_wtd = (latest_price / sow_price) - 1
+    perf_mtd = (latest_price / som_price) - 1
+    perf_qtd = (latest_price / soq_price) - 1
+    perf_ytd = (latest_price / soy_price) - 1
+    
     performance_df = pd.DataFrame({
-        "1-Day Change": perf_1d,
-        "1-Month Change": perf_1m,
-        "YTD Total Return (incl. dividends)": perf_ytd
+        "1 Day": perf_1d,
+        "Week To Date": perf_wtd,
+        "Month To Date": perf_mtd,
+        "Quarter To Date": perf_qtd,
+        "Year To Date (YTD)": perf_ytd,
     })
     
     return performance_df
@@ -146,10 +170,8 @@ def style_performance_table(df, benchmark_name="MSCI World (Benchmark)"):
     return df.style.apply(color_rows_gradient, axis=1).format("{:.2%}")
 
 def display_performance_section(title, tickers):
-    # ... (function is updated to use new data fetching and calculation functions)
     st.header(f"{title} Performance Overview (GBP)")
-    current_year = datetime.now().year
-    start_date = f"{current_year - 1}-12-25"
+    start_date = (datetime.now() - pd.DateOffset(years=1)).strftime('%Y-%m-%d')
     
     data = get_performance_data(tickers, start_date)
     performance_table = calculate_performance_metrics(data)
@@ -157,26 +179,34 @@ def display_performance_section(title, tickers):
     benchmark_name = "MSCI World (Benchmark)"
 
     if not performance_table.empty:
-        # Reorder and Style the table
-        if benchmark_name in performance_table.index and title != "Factor":
-            sort_col = "YTD Total Return (incl. dividends)"
-            benchmark_ytd = performance_table.loc[benchmark_name, sort_col]
+        # --- FIX: Unified the display logic for all tabs ---
+        if benchmark_name in performance_table.index:
+            sort_col = "Year To Date (YTD)"
             
-            above_benchmark = performance_table[performance_table[sort_col] > benchmark_ytd].sort_values(by=sort_col, ascending=False)
-            benchmark_row = performance_table.loc[[benchmark_name]]
-            below_benchmark = performance_table[performance_table[sort_col] <= benchmark_ytd].drop(index=benchmark_name).sort_values(by=sort_col, ascending=False)
-            
-            display_table = pd.concat([above_benchmark, benchmark_row, below_benchmark])
-            
-            st.dataframe(style_performance_table(display_table, benchmark_name), use_container_width=True)
+            # Ensure sort column exists before proceeding
+            if sort_col in performance_table.columns:
+                benchmark_perf = performance_table.loc[benchmark_name, sort_col]
+                
+                above_benchmark = performance_table[performance_table[sort_col] > benchmark_perf].sort_values(by=sort_col, ascending=False)
+                benchmark_row = performance_table.loc[[benchmark_name]]
+                below_benchmark = performance_table[performance_table[sort_col] <= benchmark_perf].drop(index=benchmark_name).sort_values(by=sort_col, ascending=False)
+                
+                display_table = pd.concat([above_benchmark, benchmark_row, below_benchmark])
+                
+                st.dataframe(style_performance_table(display_table, benchmark_name), use_container_width=True)
+            else:
+                 # Fallback if YTD column isn't available for some reason
+                 st.dataframe(style_performance_table(performance_table, benchmark_name), use_container_width=True)
         else:
-            st.dataframe(style_performance_table(performance_table.sort_values(by="YTD Total Return (incl. dividends)", ascending=False)), use_container_width=True)
+            # Fallback if benchmark ticker failed to load
+            st.dataframe(performance_table.style.format("{:.2%}").background_gradient(cmap='RdYlGn'), use_container_width=True)
 
         st.header(f"Visual Comparison - {title}")
         
+        metric_options = list(performance_table.columns)
         metric_to_plot = st.selectbox(
             "Choose a performance metric to visualize:",
-            ("YTD Total Return (incl. dividends)", "1-Month Change", "1-Day Change"),
+            metric_options,
             key=f"select_{title}"
         )
 
@@ -192,50 +222,39 @@ def display_performance_section(title, tickers):
         st.warning(f"Could not display performance data for {title}.")
 
 def display_risk_correlation_section(all_tickers):
-    """New section for Correlation and Rolling Performance analysis."""
+    # ... (function is unchanged)
     st.header("Risk & Correlation Analysis")
-
-    # Fetch 3 years of data for meaningful analysis
     start_date = (datetime.now() - pd.DateOffset(years=3)).strftime('%Y-%m-%d')
     data = get_performance_data(all_tickers, start_date)
 
     if not data.empty:
-        # --- 1. Correlation Heatmap ---
         st.subheader("Correlation Heatmap")
         st.write("This grid shows how different assets move in relation to each other. A value of 1 means they move perfectly together; a value of 0 means they have no relationship.")
         
-        # Calculate correlations on daily returns
         returns = data.pct_change()
         corr_matrix = returns.corr()
 
-        # Plot heatmap
         fig, ax = plt.subplots(figsize=(12, 9))
         sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5, ax=ax)
         st.pyplot(fig)
 
-        # --- 2. Rolling Performance ---
         st.subheader("1-Year Rolling Performance")
         st.write("This chart shows the trailing 1-year performance for each asset over the last 3 years, helping to visualize long-term trends and cyclicality.")
         
-        # Calculate 1-year (252 trading days) rolling returns
         rolling_returns = (data.pct_change(252).dropna()) * 100
         st.line_chart(rolling_returns)
 
 # --- Main App Logic ---
-# Combine all tickers into one dict for the new tab
 ALL_TICKERS = {**FACTOR_TICKERS, **REGION_TICKERS, **SECTOR_TICKERS}
 
 tab1, tab2, tab3, tab4 = st.tabs(["Factor", "Regional", "Sector", "Risk & Correlation"])
 
 with tab1:
     display_performance_section("Factor", FACTOR_TICKERS)
-
 with tab2:
     display_performance_section("Regional", REGION_TICKERS)
-
 with tab3:
     display_performance_section("Sector", SECTOR_TICKERS)
-
 with tab4:
     display_risk_correlation_section(ALL_TICKERS)
 
