@@ -8,7 +8,7 @@ The dashboard is organized into four main tabs, each providing a unique analytic
 
 ### 1. Factor Performance
 
-* Tracks the performance of key investment styles (Momentum, Value, Quality, Size) against broad market benchmarks like the MSCI World and MSCI ACWI.
+* Tracks the performance of key investment styles (Momentum, Value, Growth, Quality, Size) against broad market benchmarks like the MSCI World and MSCI ACWI.
 
 Rendered result:  
 ![Factor Performance](images/factor_performance.png)

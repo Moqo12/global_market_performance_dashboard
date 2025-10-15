@@ -18,7 +18,7 @@ FACTOR_TICKERS = {
     "World Momentum": "IWFM.L",
     "World Value": "XDEV.L",
     "World Quality": "IWQU.L",
-    "World Growth": "IWFG.L",
+    "World Growth": "SGRO.L", # Updated to SPDR MSCI World Growth UCITS ETF
     "World Size": "IWFS.L",
 }
 
@@ -107,7 +107,7 @@ def calculate_performance_metrics(data):
         return pd.DataFrame() # Not enough data to calculate
 
     # --- Performance Calculations ---
-    perf_1d = (latest_price / data.iloc[-2]) - 1 # Re-added 1-day performance
+    perf_1d = (latest_price / data.iloc[-2]) - 1 
     perf_wtd = (latest_price / sow_price) - 1
     perf_mtd = (latest_price / som_price) - 1
     perf_qtd = (latest_price / soq_price) - 1
@@ -115,9 +115,9 @@ def calculate_performance_metrics(data):
     
     performance_df = pd.DataFrame({
         "1 Day": perf_1d,
-        "Week To Date": perf_wtd,
-        "Month To Date": perf_mtd,
-        "Quarter To Date": perf_qtd,
+        "Week To Date (WTD)": perf_wtd,
+        "Month To Date (MTD)": perf_mtd,
+        "Quarter To Date (QTD)": perf_qtd,
         "Year To Date (YTD)": perf_ytd,
     })
     
