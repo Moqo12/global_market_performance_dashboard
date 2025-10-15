@@ -10,20 +10,31 @@ The dashboard is organized into four main tabs, each providing a unique analytic
 
 * Tracks the performance of key investment styles (Momentum, Value, Quality, Size) against broad market benchmarks like the MSCI World and MSCI ACWI.
 
+Rendered result:  
+![Factor Performance](images/factor_performance.png)
+
 ### 2. Regional Performance
 
 * Compares the performance of major geographic markets, including the USA, UK, Japan, Europe ex-UK, and Emerging Markets.
 * The **MSCI World (Benchmark)** is included directly in the table for immediate performance comparison.
+
+![Regional Performance](images/regional_performance.png)
 
 ### 3. Sector Performance
 
 * Provides a breakdown of the 11 major GICS sectors of the MSCI World index (e.g., Technology, Health Care, Financials).
 * The **MSCI World (Benchmark)** is also included here for easy relative analysis.
 
+![Sector Performance](images/sector_performance.png)
+
 ### 4. Risk & Correlation
 
 * **Correlation Heatmap:** A visual grid that shows how different assets move in relation to each other, offering a clear picture of diversification.
 * **1-Year Rolling Performance Chart:** A line chart that displays the trailing 1-year performance of all assets over the last three years, helping to identify long-term trends and cyclical behavior.
+
+Rendered results:  
+![Risk & Correlation](images/risk_analysis.png)  
+![Correlation Matrix](images/correlation_matrix.png)
 
 ## Technical Details
 
