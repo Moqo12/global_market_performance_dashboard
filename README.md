@@ -33,8 +33,8 @@ Rendered result:
 - **1-Year Rolling Performance Chart:** A line chart that displays the trailing 1-year performance of all assets over the last three years, helping to identify long-term trends and cyclical behavior.
 
 Rendered results:  
-![Correlation Heatmap](images/correlation_heatmap.png)  
-![Rolling Performance Chart](images/rolling_performance.png)
+![Correlation Heatmap](images/correlation_matrix.png)  
+![Rolling Performance Chart](images/risk_analysis.png)
 
 ## Technical Details
 
