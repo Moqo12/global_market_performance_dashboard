@@ -7,56 +7,61 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # --- Dashboard Configuration ---
-st.set_page_config(page_title="Global Performance Dashboard (GBP)", layout="wide")
-st.title("📈 Global Market Performance Dashboard (in GBP)")
-st.markdown("Analyzing the performance of investment factors, regions, and sectors using London-listed ETFs.")
+st.set_page_config(page_title="Market Performance Dashboard (USD)", layout="wide")
+st.title("📈 Market Performance Dashboard (in USD)")
+st.markdown("Analyzing the performance of US investment factors and sectors, alongside global regions, using US-listed ETFs.")
 
-# --- Ticker Definitions ---
+# --- Ticker Definitions (ALL US-LISTED & USD-DENOMINATED) ---
 FACTOR_TICKERS = {
-    "MSCI World (Benchmark)": "SWDA.L",
-    "MSCI ACWI (Benchmark)": "SSAC.L",
-    "World Momentum": "IWFM.L",
-    "World Value": "XDEV.L",
-    "World Quality": "IWQU.L",
-    "World Growth": "SGRO.L", # Updated to SPDR MSCI World Growth UCITS ETF
-    "World Size": "IWFS.L",
+    "S&P 500 (US Benchmark)": "VOO", # Primary benchmark for US factors
+    "MSCI World (Global Benchmark)": "URTH",
+    "USA Momentum": "MTUM",
+    "USA Value": "VLUE",
+    "USA Quality": "QUAL",
+    "USA Growth (Russell 1000)": "IWF",
+    "USA Size": "SIZE",
 }
 
 REGION_TICKERS = {
-    "MSCI World (Benchmark)": "SWDA.L", # Added for comparison
-    "USA": "CSUS.L",
-    "Japan": "SJPA.L",
-    "UK": "CSUK.L",
-    "Europe ex-UK": "CEUG.L",
-    "Emerging Markets ex-China": "EMXC.L", 
-    "China A-Shares": "CNYA.L",
-    "Canada": "CCAU.L",
+    "MSCI World (Benchmark)": "URTH",
+    "USA (S&P 500)": "VOO",
+    "Japan": "EWJ",
+    "UK": "EWU",
+    "Europe ex-UK": "EZU",
+    "Emerging Markets ex-China": "EMXC", 
+    "China": "MCHI",
+    "Canada": "EWC",
 }
 
 SECTOR_TICKERS = {
-    "MSCI World (Benchmark)": "SWDA.L", # Added for comparison
-    "Info. Technology": "IUIT.L",
-    "Health Care": "IUES.L",
-    "Financials": "IUFS.L",
-    "Cons. Discretionary": "IUCD.L",
-    "Industrials": "IUIS.L",
-    "Cons. Staples": "IUCS.L",
-    "Energy": "IESE.L",
-    "Utilities": "IUUS.L",
-    "Materials": "IUMS.L",
-    "Real Estate": "EPRA.L",
-    "Communication Svcs": "IUCM.L",
+    "S&P 500 (US Benchmark)": "VOO", # Primary benchmark for US sectors
+    "MSCI World (Global Benchmark)": "URTH",
+    "Info. Technology": "VGT",
+    "Health Care": "VHT",
+    "Financials": "VFH",
+    "Cons. Discretionary": "VCR",
+    "Industrials": "VIS",
+    "Cons. Staples": "VDC",
+    "Energy": "VDE",
+    "Utilities": "VPU",
+    "Materials": "VAW",
+    "Real Estate": "VNQ",
+    "Communication Svcs": "VOX",
 }
 
 @st.cache_data(ttl=3600) # Cache data for 1 hour
 def get_performance_data(tickers, start_date):
-    # ... (function is largely unchanged)
-    raw_data = yf.download(list(tickers.values()), start=start_date, progress=False, auto_adjust=False)
+    """
+    Downloads historical data for US-listed ETFs.
+    Uses auto_adjust=True to get total return performance (dividends included).
+    """
+    raw_data = yf.download(list(tickers.values()), start=start_date, progress=False, auto_adjust=True)
 
     if raw_data.empty or 'Close' not in raw_data:
         st.error(f"Could not download market data for one or more tickers.")
         return pd.DataFrame()
     
+    # Handle cases where only one ticker returns data
     if isinstance(raw_data.columns, pd.MultiIndex):
         data = raw_data['Close'].dropna(axis=1, how='all')
     else:
@@ -65,7 +70,7 @@ def get_performance_data(tickers, start_date):
     if data.empty:
         return pd.DataFrame()
 
-    # Rename columns to human-readable names
+    # Rename columns from tickers to human-readable names
     ticker_to_name = {v: k for k, v in tickers.items()}
     data.rename(columns=ticker_to_name, inplace=True)
         
@@ -123,14 +128,17 @@ def calculate_performance_metrics(data):
     
     return performance_df
 
-def style_performance_table(df, benchmark_name="MSCI World (Benchmark)"):
-    # ... (function is unchanged)
+def style_performance_table(df, benchmark_name):
+    """
+    Applies a distinct green/red gradient relative to the specified benchmark.
+    """
     if benchmark_name not in df.index:
         return df.style.format("{:.2%}").background_gradient(cmap='RdYlGn', axis=None)
 
     benchmark_row = df.loc[benchmark_name]
     diffs = df - benchmark_row
 
+    # Normalize per column for consistent color intensity
     max_pos_per_col = diffs[diffs > 0].max()
     max_neg_per_col = abs(diffs[diffs < 0].min())
 
@@ -170,20 +178,23 @@ def style_performance_table(df, benchmark_name="MSCI World (Benchmark)"):
     return df.style.apply(color_rows_gradient, axis=1).format("{:.2%}")
 
 def display_performance_section(title, tickers):
-    st.header(f"{title} Performance Overview (GBP)")
+    """Helper function to display a performance table and chart for a given set of tickers."""
+    st.header(f"{title} Performance Overview (USD)")
     start_date = (datetime.now() - pd.DateOffset(years=1)).strftime('%Y-%m-%d')
     
     data = get_performance_data(tickers, start_date)
     performance_table = calculate_performance_metrics(data)
     
-    benchmark_name = "MSCI World (Benchmark)"
+    # --- NEW: Dynamic Benchmark Selection ---
+    if title == "Factor" or title == "Sector":
+        benchmark_name = "S&P 500 (US Benchmark)"
+    else: # For Regional tab
+        benchmark_name = "MSCI World (Benchmark)"
 
     if not performance_table.empty:
-        # --- FIX: Unified the display logic for all tabs ---
         if benchmark_name in performance_table.index:
             sort_col = "Year To Date (YTD)"
             
-            # Ensure sort column exists before proceeding
             if sort_col in performance_table.columns:
                 benchmark_perf = performance_table.loc[benchmark_name, sort_col]
                 
@@ -195,10 +206,8 @@ def display_performance_section(title, tickers):
                 
                 st.dataframe(style_performance_table(display_table, benchmark_name), use_container_width=True)
             else:
-                 # Fallback if YTD column isn't available for some reason
                  st.dataframe(style_performance_table(performance_table, benchmark_name), use_container_width=True)
         else:
-            # Fallback if benchmark ticker failed to load
             st.dataframe(performance_table.style.format("{:.2%}").background_gradient(cmap='RdYlGn'), use_container_width=True)
 
         st.header(f"Visual Comparison - {title}")
@@ -222,8 +231,8 @@ def display_performance_section(title, tickers):
         st.warning(f"Could not display performance data for {title}.")
 
 def display_risk_correlation_section(all_tickers):
-    # ... (function is unchanged)
-    st.header("Risk & Correlation Analysis")
+    """New section for Correlation and Rolling Performance analysis."""
+    st.header("Risk & Correlation Analysis (USD)")
     start_date = (datetime.now() - pd.DateOffset(years=3)).strftime('%Y-%m-%d')
     data = get_performance_data(all_tickers, start_date)
 
@@ -231,7 +240,8 @@ def display_risk_correlation_section(all_tickers):
         st.subheader("Correlation Heatmap")
         st.write("This grid shows how different assets move in relation to each other. A value of 1 means they move perfectly together; a value of 0 means they have no relationship.")
         
-        returns = data.pct_change()
+        # Address FutureWarning by specifying fill_method=None
+        returns = data.pct_change(fill_method=None)
         corr_matrix = returns.corr()
 
         fig, ax = plt.subplots(figsize=(12, 9))
@@ -241,7 +251,8 @@ def display_risk_correlation_section(all_tickers):
         st.subheader("1-Year Rolling Performance")
         st.write("This chart shows the trailing 1-year performance for each asset over the last 3 years, helping to visualize long-term trends and cyclicality.")
         
-        rolling_returns = (data.pct_change(252).dropna()) * 100
+        # Address FutureWarning by specifying fill_method=None
+        rolling_returns = (data.pct_change(252, fill_method=None).dropna()) * 100
         st.line_chart(rolling_returns)
 
 # --- Main App Logic ---
