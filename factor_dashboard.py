@@ -35,7 +35,6 @@ REGION_TICKERS = {
 
 SECTOR_TICKERS = {
     "S&P 500 (US Benchmark)": "VOO", # Primary benchmark for US sectors
-    "MSCI World (Global Benchmark)": "URTH",
     "Info. Technology": "VGT",
     "Health Care": "VHT",
     "Financials": "VFH",
